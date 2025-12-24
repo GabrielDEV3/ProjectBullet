@@ -1,3 +1,4 @@
+// player.js (inalterado - mas incluindo para referência)
 class Player {
     constructor(id) {
         this.id = id;
@@ -10,7 +11,8 @@ class Player {
         this.posZ = 0.0;
         this.animationIndex = 0;
 
-        this.slots = [];
+        // 2 slots fixos para IDs de armas
+        this.slots = [null, null];
         this.currentSlotIndex = 0;
 
         this.maxHealth = 100;
@@ -40,28 +42,39 @@ class Player {
     }
 
     fromJSON(json) {
-        //if (json.id !== undefined) this.id = json.id;
         if (json.name !== undefined) this.name = json.name;
-
         if (json.rotX !== undefined) this.rotX = json.rotX;
         if (json.rotY !== undefined) this.rotY = json.rotY;
         if (json.posX !== undefined) this.posX = json.posX;
         if (json.posY !== undefined) this.posY = json.posY;
         if (json.posZ !== undefined) this.posZ = json.posZ;
         if (json.animationIndex !== undefined) this.animationIndex = json.animationIndex;
-
-        if (json.slots !== undefined) this.slots = json.slots;
         if (json.currentSlotIndex !== undefined) this.currentSlotIndex = json.currentSlotIndex;
-
-        //if (json.health !== undefined) this.health = json.health;
-        //if (json.maxHealth !== undefined) this.maxHealth = json.maxHealth;
-        //if (json.isAlive !== undefined) this.isAlive = json.isAlive;
         return this;
+    }
+
+    // Pega uma arma e coloca em slot vazio
+    pick(weaponId) {
+        for (let i = 0; i < this.slots.length; i++) {
+            if (this.slots[i] === null) {
+                this.slots[i] = weaponId;
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // Larga a arma do slot atual
+    drop() {
+        const weaponId = this.slots[this.currentSlotIndex];
+        if (weaponId === null) return null;
+        
+        this.slots[this.currentSlotIndex] = null;
+        return weaponId;
     }
 
     hit(amount) {
         if (!this.isAlive) return false;
-
         this.health -= amount;
         if (this.health <= 0) {
             this.die();
@@ -72,7 +85,6 @@ class Player {
 
     heal(amount) {
         if (!this.isAlive) return false;
-
         this.health = Math.min(this.maxHealth, this.health + amount);
         return true;
     }
