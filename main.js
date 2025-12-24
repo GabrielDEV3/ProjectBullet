@@ -1,7 +1,7 @@
 const Server = require('./server.js');
 
 // Inicia o servidor
-Server server = new Server(process.env.PORT);
+const server = new Server(process.env.PORT);
 
 server.start();
 
