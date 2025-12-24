@@ -153,141 +153,133 @@ class Server {
 
                 default:
                     console.warn(`Tipo de evento desconhecido: ${event.type} do jogador ${playerId}`);
-                }
-            } catch (error) {
-                console.error(`Erro ao processar mensagem do jogador ${playerId}:`, error);
             }
+        } catch (error) {
+            console.error(`Erro ao processar mensagem do jogador ${playerId}:`, error);
+        }
+    }
+
+    // Processa desconexão
+    onClose(playerId) {
+        const player = this.players.get(playerId);
+        if (player) {
+            console.log(`Jogador ${playerId} "${player.name}" desconectado`);
         }
 
-        // Processa desconexão
-        onClose(playerId) {
-            const player = this.players.get(playerId);
-            if (player) {
-                console.log(`Jogador ${playerId} "${player.name}" desconectado`);
-            }
+        this.players.delete(playerId);
+        this.sockets.delete(playerId);
+        console.log(`Jogador ${playerId} removido. Total: ${this.players.size}`);
+    }
 
-            this.players.delete(playerId);
-            this.sockets.delete(playerId);
-            console.log(`Jogador ${playerId} removido. Total: ${this.players.size}`);
+    // Processa erro de conexão
+    onError(playerId, error) {
+        console.error(`Erro no socket do jogador ${playerId}:`, error);
+        this.players.delete(playerId);
+        this.sockets.delete(playerId);
+    }
+
+    // Processa atualização do jogador
+    onUpdate(playerId, content) {
+        const player = this.players.get(playerId);
+        if (player && content && content.player) {
+            player.fromJSON(content.player);
+        }
+    }
+
+    // Processa hit
+    onHit(hiterId, content) {
+        if (!content || !content.target || !content.amount || content.amount <= 0) {
+            console.warn(`Hit inválido de ${hiterId}:`, content);
+            return;
         }
 
-        // Processa erro de conexão
-        onError(playerId, error) {
-            console.error(`Erro no socket do jogador ${playerId}:`, error);
-            this.players.delete(playerId);
-            this.sockets.delete(playerId);
+        const { target, amount } = content;
+        const hiter = this.players.get(hiterId);
+        const targetPlayer = this.players.get(target);
+        const targetSocket = this.sockets.get(target);
+
+        // Validações
+        if (!hiter || !targetPlayer || !targetSocket) {
+            console.warn(`Jogador não encontrado para hit: hiter=${hiterId}, target=${target}`);
+            return;
         }
 
-        // Processa atualização do jogador
-        onUpdate(playerId, content) {
-            const player = this.players.get(playerId);
-            if (player && content && content.player) {
-                player.fromJSON(content.player);
-            }
+        // Não permite jogadores mortos causarem dano
+        if (!hiter.isAlive) {
+            console.log(`Jogador ${hiterId} está morto e não pode causar dano`);
+            return;
         }
 
-        // Processa hit
-        onHit(hiterId, content) {
-            if (!content || !content.target || !content.amount || content.amount <= 0) {
-                console.warn(`Hit inválido de ${hiterId}:`, content);
-                return;
-            }
-
-            const {
-                target,
-                amount
-            } = content;
-            const hiter = this.players.get(hiterId);
-            const targetPlayer = this.players.get(target);
-            const targetSocket = this.sockets.get(target);
-
-            // Validações
-            if (!hiter || !targetPlayer || !targetSocket) {
-                console.warn(`Jogador não encontrado para hit: hiter=${hiterId}, target=${target}`);
-                return;
-            }
-
-            // Não permite jogadores mortos causarem dano
-            if (!hiter.isAlive) {
-                console.log(`Jogador ${hiterId} está morto e não pode causar dano`);
-                return;
-            }
-
-            /*
-       // Não permite causar dano a si mesmo
+        /*
+        // Não permite causar dano a si mesmo
         if (hiterId === target) {
             console.log(`Jogador ${hiterId} tentou se atingir`);
             return;
         }
         */
 
-            // Aplica o dano
-            targetPlayer.hit(amount);
-            console.log(`Jogador ${hiterId} atingiu ${target} com ${amount} de dano`);
+        // Aplica o dano
+        targetPlayer.hit(amount);
+        console.log(`Jogador ${hiterId} atingiu ${target} com ${amount} de dano`);
 
-            // Envia notificação para o alvo
-            targetSocket.send(JSON.stringify({
-                type: 'hit',
-                content: {
-                    target, amount
-                }
-            }));
+        // Envia notificação para o alvo
+        targetSocket.send(JSON.stringify({
+            type: 'hit',
+            content: { target, amount }
+        }));
+    }
+
+    // Processa heal
+    onHeal(healerId, content) {
+        if (!content || !content.target || !content.amount || content.amount <= 0) {
+            console.warn(`Heal inválido de ${healerId}:`, content);
+            return;
         }
 
-        // Processa heal
-        onHeal(healerId, content) {
-            if (!content || !content.target || !content.amount || content.amount <= 0) {
-                console.warn(`Heal inválido de ${healerId}:`, content);
-                return;
-            }
+        const { target, amount } = content;
+        const healer = this.players.get(healerId);
+        const targetPlayer = this.players.get(target);
 
-            const {
-                target,
-                amount
-            } = content;
-            const healer = this.players.get(healerId);
-            const targetPlayer = this.players.get(target);
-
-            // Validações
-            if (!healer || !targetPlayer) {
-                console.warn(`Jogador não encontrado para heal: healer=${healerId}, target=${target}`);
-                return;
-            }
-
-            // Apenas jogadores vivos podem curar
-            if (!healer.isAlive) {
-                console.log(`Jogador ${healerId} está morto e não pode curar`);
-                return;
-            }
-
-            // Apenas jogadores vivos podem ser curados
-            if (!targetPlayer.isAlive) {
-                console.log(`Jogador ${target} está morto e não pode ser curado`);
-                return;
-            }
-
-            // Aplica a cura
-            targetPlayer.heal(amount);
-            console.log(`Jogador ${healerId} curou ${target} em ${amount}`);
+        // Validações
+        if (!healer || !targetPlayer) {
+            console.warn(`Jogador não encontrado para heal: healer=${healerId}, target=${target}`);
+            return;
         }
 
-        // Processa exit
-        onExit(playerId, content) {
-            const socket = this.sockets.get(playerId);
-            if (socket && socket.readyState === 1) {
-                socket.close();
-            }
+        // Apenas jogadores vivos podem curar
+        if (!healer.isAlive) {
+            console.log(`Jogador ${healerId} está morto e não pode curar`);
+            return;
         }
 
-        // Obtém estatísticas do servidor
-        getStats() {
-            return {
-                count: this.players.size,
-                uptime: process.uptime(),
-                port: this.port
-            };
+        // Apenas jogadores vivos podem ser curados
+        if (!targetPlayer.isAlive) {
+            console.log(`Jogador ${target} está morto e não pode ser curado`);
+            return;
+        }
+
+        // Aplica a cura
+        targetPlayer.heal(amount);
+        console.log(`Jogador ${healerId} curou ${target} em ${amount}`);
+    }
+
+    // Processa exit
+    onExit(playerId, content) {
+        const socket = this.sockets.get(playerId);
+        if (socket && socket.readyState === 1) {
+            socket.close();
         }
     }
+
+    // Obtém estatísticas do servidor
+    getStats() {
+        return {
+            count: this.players.size,
+            uptime: process.uptime(),
+            port: this.port
+        };
+    }
 }
+
 // Exporta a classe e a instância
 module.exports = Server;
